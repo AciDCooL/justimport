@@ -15,7 +15,7 @@ type ArrClient interface {
 	Name() string
 	GetQueue(ctx context.Context) ([]arrclient.QueueRecord, error)
 	GetManualImport(ctx context.Context, downloadID string) ([]arrclient.ManualImportItem, error)
-	PostManualImport(ctx context.Context, item *arrclient.ManualImportItem, importMode string) error
+	PostManualImport(ctx context.Context, item *arrclient.ManualImportItem) error
 }
 
 // Importer polls Radarr/Sonarr instances and auto-imports eligible queue items.

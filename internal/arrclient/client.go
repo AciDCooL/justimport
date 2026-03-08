@@ -102,7 +102,7 @@ func (c *Client) GetManualImport(ctx context.Context, downloadID string) ([]Manu
 }
 
 // PostManualImport sends a manual import approval request for the given item.
-func (c *Client) PostManualImport(ctx context.Context, item *ManualImportItem, importMode string) error {
+func (c *Client) PostManualImport(ctx context.Context, item *ManualImportItem) error {
 	item.ImportApproved = true
 	item.ImportMode = "Move"
 
