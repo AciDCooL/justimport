@@ -334,6 +334,27 @@ func TestGetQueue_SonarrParam(t *testing.T) {
 	}
 }
 
+func TestGetManualImport_URLEncodesDownloadID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The downloadId should be properly URL-encoded, so the query parser
+		// should return the original value with special characters.
+		got := r.URL.Query().Get("downloadId")
+		if got != "abc&evil=true" {
+			t.Errorf("expected downloadId 'abc&evil=true', got %q", got)
+		}
+		if err := json.NewEncoder(w).Encode([]arrclient.ManualImportItem{}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	client := arrclient.NewClient(server.URL, "test-key", "radarr")
+	_, err := client.GetManualImport(context.Background(), "abc&evil=true")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestPostManualImport_SonarrCommand(t *testing.T) {
 	var receivedCmd arrclient.ManualImportCommand
 

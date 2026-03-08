@@ -471,10 +471,63 @@ func TestProcessItem_PostError(t *testing.T) {
 	}
 
 	imp := importer.New([]importer.ArrClient{client}, false)
-	imp.Run(cancelledContext(), 0) // should not panic
+	imp.Run(cancelledContext(), 0)
 
 	if client.postCalled != 1 {
 		t.Errorf("expected 1 POST attempt even when it fails, got %d", client.postCalled)
+	}
+}
+
+func TestProcessItem_PostErrorNotMarkedAsSeen(t *testing.T) {
+	client := &mockClient{
+		name: "radarr",
+		queueRecords: []arrclient.QueueRecord{
+			recordWithManualImport(1, "Movie.2020.mkv", "dl1"),
+		},
+		manualImport: []arrclient.ManualImportItem{
+			movieItem("/downloads/Movie.2020.mkv", "Movie 2020"),
+		},
+		postErr: errors.New("server error"),
+	}
+
+	imp := importer.New([]importer.ArrClient{client}, false)
+
+	// First poll: POST fails.
+	imp.Run(cancelledContext(), 0)
+	if client.postCalled != 1 {
+		t.Fatalf("expected 1 POST attempt, got %d", client.postCalled)
+	}
+
+	// Second poll: item should be retried because it was not marked as seen.
+	imp.Run(cancelledContext(), 0)
+	if client.postCalled != 2 {
+		t.Errorf("expected 2 POST attempts (retry after failure), got %d", client.postCalled)
+	}
+}
+
+func TestProcessItem_ManualImportErrorNotMarkedAsSeen(t *testing.T) {
+	client := &mockClient{
+		name: "radarr",
+		queueRecords: []arrclient.QueueRecord{
+			recordWithManualImport(1, "Movie.2020.mkv", "dl1"),
+		},
+		manualImportErr: errors.New("API error"),
+	}
+
+	imp := importer.New([]importer.ArrClient{client}, false)
+
+	// First poll: GetManualImport fails.
+	imp.Run(cancelledContext(), 0)
+
+	// Clear error for second poll — should be retried.
+	client.manualImportErr = nil
+	client.manualImport = []arrclient.ManualImportItem{
+		movieItem("/downloads/Movie.2020.mkv", "Movie 2020"),
+	}
+
+	imp.Run(cancelledContext(), 0)
+	if client.postCalled != 1 {
+		t.Errorf("expected 1 POST call after retry, got %d", client.postCalled)
 	}
 }
 
