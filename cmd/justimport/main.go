@@ -82,7 +82,7 @@ func (h *logHandler) Enabled(_ context.Context, _ slog.Level) bool {
 	return true
 }
 
-func (h *logHandler) Handle(_ context.Context, r slog.Record) error {
+func (h *logHandler) Handle(_ context.Context, r slog.Record) error { //nolint:gocritic // slog.Handler interface requires slog.Record by value
 	level := levelLabel(r.Level)
 	timestamp := r.Time.Format(time.DateTime)
 	_, err := fmt.Fprintf(h.w, "%s %s %s\n", timestamp, level, r.Message)

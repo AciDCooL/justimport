@@ -47,7 +47,7 @@ func Load() (*Config, error) {
 	if dryRunStr == "" {
 		cfg.DryRun = true
 	} else {
-		cfg.DryRun = strings.ToLower(dryRunStr) != "false"
+		cfg.DryRun = !strings.EqualFold(dryRunStr, "false")
 	}
 
 	return cfg, nil
