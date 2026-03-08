@@ -28,17 +28,19 @@ func sanitizeLog(s string) string {
 
 // Importer polls Radarr/Sonarr instances and auto-imports eligible queue items.
 type Importer struct {
-	clients []ArrClient
-	dryRun  bool
-	seen    map[string]struct{}
+	clients    []ArrClient
+	dryRun     bool
+	seen       map[string]struct{}
+	lastFailed map[string]bool
 }
 
 // New creates a new Importer.
 func New(clients []ArrClient, dryRun bool) *Importer {
 	return &Importer{
-		clients: clients,
-		dryRun:  dryRun,
-		seen:    make(map[string]struct{}),
+		clients:    clients,
+		dryRun:     dryRun,
+		seen:       make(map[string]struct{}),
+		lastFailed: make(map[string]bool),
 	}
 }
 
@@ -65,18 +67,51 @@ func (imp *Importer) Run(ctx context.Context, interval time.Duration) {
 }
 
 func (imp *Importer) pollAll(ctx context.Context) {
+	activeIDs := make(map[string]struct{})
+	allSucceeded := true
+
 	for _, client := range imp.clients {
-		imp.pollInstance(ctx, client)
+		ids, ok := imp.pollInstance(ctx, client)
+		if ok {
+			for _, id := range ids {
+				activeIDs[id] = struct{}{}
+			}
+		} else {
+			allSucceeded = false
+		}
+	}
+
+	// Prune seen map when all clients responded successfully.
+	// This removes download IDs that are no longer in any queue,
+	// allowing re-processing if they reappear (e.g. after a service restart).
+	if allSucceeded {
+		for id := range imp.seen {
+			if _, exists := activeIDs[id]; !exists {
+				delete(imp.seen, id)
+			}
+		}
 	}
 }
 
-func (imp *Importer) pollInstance(ctx context.Context, client ArrClient) {
+func (imp *Importer) pollInstance(ctx context.Context, client ArrClient) ([]string, bool) {
 	name := client.Name()
 
 	records, err := client.GetQueue(ctx)
 	if err != nil {
 		slog.Error(fmt.Sprintf("[%s] Failed to fetch queue: %v", name, err))
-		return
+		imp.lastFailed[name] = true
+		return nil, false
+	}
+
+	if imp.lastFailed[name] {
+		slog.Info(fmt.Sprintf("[%s] Connection restored", name))
+		imp.lastFailed[name] = false
+	}
+
+	// Collect all download IDs for seen-map pruning.
+	allIDs := make([]string, 0, len(records))
+	for _, r := range records {
+		allIDs = append(allIDs, r.DownloadID)
 	}
 
 	pending := make([]arrclient.QueueRecord, 0, len(records))
@@ -100,6 +135,8 @@ func (imp *Importer) pollInstance(ctx context.Context, client ArrClient) {
 			imp.seen[record.DownloadID] = struct{}{}
 		}
 	}
+
+	return allIDs, true
 }
 
 // processItem returns true if the item was handled (imported or deliberately skipped)
