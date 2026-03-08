@@ -119,7 +119,8 @@ func TestGetManualImport(t *testing.T) {
 				Path: "/downloads/Movie.2020.1080p.mkv",
 				Name: "Movie.2020.1080p.mkv",
 				Size: 8000000000,
-				Movie: &arrclient.MediaTitle{
+				Movie: &arrclient.MediaRef{
+					ID:    5,
 					Title: "Movie 2020",
 				},
 				Rejections: []arrclient.Rejection{},
@@ -148,18 +149,22 @@ func TestGetManualImport(t *testing.T) {
 }
 
 func TestPostManualImport(t *testing.T) {
-	var receivedItems []arrclient.ManualImportItem
+	var receivedCmd arrclient.ManualImportCommand
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if err := json.NewDecoder(r.Body).Decode(&receivedItems); err != nil {
+		if r.URL.Path != "/api/v3/command" {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&receivedCmd); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusCreated)
 	}))
 	defer server.Close()
 
@@ -167,23 +172,42 @@ func TestPostManualImport(t *testing.T) {
 	item := arrclient.ManualImportItem{
 		ID:   1,
 		Path: "/downloads/Movie.2020.mkv",
-		Movie: &arrclient.MediaTitle{
+		Movie: &arrclient.MediaRef{
+			ID:    42,
 			Title: "Movie 2020",
 		},
+		Quality:    json.RawMessage(`{"quality":{"id":7}}`),
+		Languages:  json.RawMessage(`[{"id":1,"name":"English"}]`),
+		DownloadID: "dl-abc",
+		FolderName: "Movie.2020",
 	}
 
 	if err := client.PostManualImport(context.Background(), &item); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(receivedItems) != 1 {
-		t.Fatalf("expected 1 item in POST body, got %d", len(receivedItems))
+	if receivedCmd.Name != "ManualImport" {
+		t.Errorf("expected command name ManualImport, got %s", receivedCmd.Name)
 	}
-	if !receivedItems[0].ImportApproved {
-		t.Error("expected ImportApproved to be true")
+	if receivedCmd.ImportMode != "move" {
+		t.Errorf("expected importMode move, got %s", receivedCmd.ImportMode)
 	}
-	if receivedItems[0].ImportMode != "Move" {
-		t.Errorf("expected ImportMode Move, got %s", receivedItems[0].ImportMode)
+	if len(receivedCmd.Files) != 1 {
+		t.Fatalf("expected 1 file in command, got %d", len(receivedCmd.Files))
+	}
+
+	f := receivedCmd.Files[0]
+	if f.Path != "/downloads/Movie.2020.mkv" {
+		t.Errorf("expected path /downloads/Movie.2020.mkv, got %s", f.Path)
+	}
+	if f.MovieID != 42 {
+		t.Errorf("expected movieId 42, got %d", f.MovieID)
+	}
+	if f.DownloadID != "dl-abc" {
+		t.Errorf("expected downloadId dl-abc, got %s", f.DownloadID)
+	}
+	if f.FolderName != "Movie.2020" {
+		t.Errorf("expected folderName Movie.2020, got %s", f.FolderName)
 	}
 }
 
@@ -194,7 +218,7 @@ func TestPostManualImport_ServerError(t *testing.T) {
 	defer server.Close()
 
 	client := arrclient.NewClient(server.URL, "test-key", "radarr")
-	item := arrclient.ManualImportItem{ID: 1, Path: "/downloads/movie.mkv"}
+	item := arrclient.ManualImportItem{ID: 1, Path: "/downloads/movie.mkv", Movie: &arrclient.MediaRef{ID: 1, Title: "M"}}
 
 	if err := client.PostManualImport(context.Background(), &item); err == nil {
 		t.Fatal("expected error, got nil")
@@ -259,10 +283,114 @@ func TestJSONUnmarshal_ManualImportItem(t *testing.T) {
 	if item.Movie == nil || item.Movie.Title != "White Noise 2: The Light" {
 		t.Errorf("unexpected movie title")
 	}
+	if item.Movie.ID != 5 {
+		t.Errorf("expected movie id 5, got %d", item.Movie.ID)
+	}
 	if item.Size != 9000000000 {
 		t.Errorf("unexpected size: %d", item.Size)
 	}
 	if len(item.Rejections) != 0 {
 		t.Errorf("expected 0 rejections, got %d", len(item.Rejections))
+	}
+}
+
+func TestGetQueue_RadarrParam(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("includeUnknownMovieItems") != "true" {
+			t.Errorf("expected includeUnknownMovieItems=true for radarr")
+		}
+		if r.URL.Query().Get("includeUnknownSeriesItems") != "" {
+			t.Errorf("unexpected includeUnknownSeriesItems param for radarr")
+		}
+		if err := json.NewEncoder(w).Encode(arrclient.QueueResponse{}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	client := arrclient.NewClient(server.URL, "key", "radarr")
+	if _, err := client.GetQueue(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGetQueue_SonarrParam(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("includeUnknownSeriesItems") != "true" {
+			t.Errorf("expected includeUnknownSeriesItems=true for sonarr")
+		}
+		if r.URL.Query().Get("includeUnknownMovieItems") != "" {
+			t.Errorf("unexpected includeUnknownMovieItems param for sonarr")
+		}
+		if err := json.NewEncoder(w).Encode(arrclient.QueueResponse{}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	client := arrclient.NewClient(server.URL, "key", "sonarr")
+	if _, err := client.GetQueue(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPostManualImport_SonarrCommand(t *testing.T) {
+	var receivedCmd arrclient.ManualImportCommand
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/command" {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&receivedCmd); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	client := arrclient.NewClient(server.URL, "test-key", "sonarr")
+	item := arrclient.ManualImportItem{
+		ID:   1,
+		Path: "/downloads/Show.S01E01.mkv",
+		Series: &arrclient.MediaRef{
+			ID:    10,
+			Title: "The Show",
+		},
+		Episodes: []arrclient.EpisodeRef{
+			{ID: 100},
+			{ID: 101},
+		},
+		Quality:     json.RawMessage(`{"quality":{"id":4}}`),
+		Languages:   json.RawMessage(`[{"id":1,"name":"English"}]`),
+		DownloadID:  "dl-xyz",
+		FolderName:  "Show.S01",
+		ReleaseType: json.RawMessage(`0`),
+	}
+
+	if err := client.PostManualImport(context.Background(), &item); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if receivedCmd.Name != "ManualImport" {
+		t.Errorf("expected command name ManualImport, got %s", receivedCmd.Name)
+	}
+	if len(receivedCmd.Files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(receivedCmd.Files))
+	}
+
+	f := receivedCmd.Files[0]
+	if f.SeriesID != 10 {
+		t.Errorf("expected seriesId 10, got %d", f.SeriesID)
+	}
+	if f.MovieID != 0 {
+		t.Errorf("expected movieId 0 for sonarr, got %d", f.MovieID)
+	}
+	if len(f.EpisodeIDs) != 2 || f.EpisodeIDs[0] != 100 || f.EpisodeIDs[1] != 101 {
+		t.Errorf("unexpected episodeIds: %v", f.EpisodeIDs)
+	}
+	if f.DownloadID != "dl-xyz" {
+		t.Errorf("expected downloadId dl-xyz, got %s", f.DownloadID)
 	}
 }

@@ -81,7 +81,13 @@ func (c *Client) CheckConnectivity(ctx context.Context) (string, string, error) 
 func (c *Client) GetQueue(ctx context.Context) ([]QueueRecord, error) {
 	var resp QueueResponse
 
-	path := "/api/v3/queue?pageSize=1000&includeUnknownMovieItems=true&includeUnknownSeriesItems=true"
+	// Radarr uses includeUnknownMovieItems; Sonarr uses includeUnknownSeriesItems.
+	param := "includeUnknownMovieItems"
+	if c.name == "sonarr" {
+		param = "includeUnknownSeriesItems"
+	}
+
+	path := fmt.Sprintf("/api/v3/queue?pageSize=1000&%s=true", param)
 	if err := c.doGet(ctx, path, &resp); err != nil {
 		return nil, err
 	}
@@ -101,17 +107,43 @@ func (c *Client) GetManualImport(ctx context.Context, downloadID string) ([]Manu
 	return items, nil
 }
 
-// PostManualImport sends a manual import approval request for the given item.
+// PostManualImport sends a manual import command for the given item via POST /api/v3/command.
 func (c *Client) PostManualImport(ctx context.Context, item *ManualImportItem) error {
-	item.ImportApproved = true
-	item.ImportMode = "Move"
+	file := ManualImportFile{
+		Path:         item.Path,
+		FolderName:   item.FolderName,
+		Quality:      item.Quality,
+		Languages:    item.Languages,
+		ReleaseGroup: item.ReleaseGroup,
+		IndexerFlags: item.IndexerFlags,
+		DownloadID:   item.DownloadID,
+	}
 
-	data, err := json.Marshal([]*ManualImportItem{item})
+	if item.Movie != nil {
+		file.MovieID = item.Movie.ID
+	}
+
+	if item.Series != nil {
+		file.SeriesID = item.Series.ID
+		file.ReleaseType = item.ReleaseType
+
+		for _, ep := range item.Episodes {
+			file.EpisodeIDs = append(file.EpisodeIDs, ep.ID)
+		}
+	}
+
+	cmd := ManualImportCommand{
+		Name:       "ManualImport",
+		Files:      []ManualImportFile{file},
+		ImportMode: "move",
+	}
+
+	data, err := json.Marshal(cmd)
 	if err != nil {
 		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v3/manualimport", bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v3/command", bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -127,7 +159,7 @@ func (c *Client) PostManualImport(ctx context.Context, item *ManualImportItem) e
 	defer resp.Body.Close() //nolint:errcheck // response body close error is intentionally ignored
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status %d for manual import POST", resp.StatusCode)
+		return fmt.Errorf("unexpected status %d for manual import command", resp.StatusCode)
 	}
 
 	return nil
