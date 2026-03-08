@@ -1,0 +1,13 @@
+services:
+  justimport:
+    image: ghcr.io/erkexzcx/justimport:latest
+    container_name: justimport
+    restart: unless-stopped
+    environment:
+      - RADARR_URL=http://radarr:7878
+      - RADARR_API_KEY=your-radarr-api-key
+      - SONARR_URL=http://sonarr:8989
+      - SONARR_API_KEY=your-sonarr-api-key
+      - POLL_INTERVAL=60s
+      - IMPORT_MODE=Move
+      - DRY_RUN=true
