@@ -58,7 +58,7 @@ func movieItem(path, movieTitle string) arrclient.ManualImportItem {
 	return arrclient.ManualImportItem{
 		ID:         1,
 		Path:       path,
-		Movie:      &arrclient.MediaTitle{Title: movieTitle},
+		Movie:      &arrclient.MediaRef{Title: movieTitle},
 		Rejections: []arrclient.Rejection{},
 	}
 }
@@ -203,7 +203,7 @@ func TestProcessItem_FileWithRejections(t *testing.T) {
 			{
 				ID:    1,
 				Path:  "/downloads/Movie.2020.1080p.mkv",
-				Movie: &arrclient.MediaTitle{Title: "Movie 2020"},
+				Movie: &arrclient.MediaRef{Title: "Movie 2020"},
 				Rejections: []arrclient.Rejection{
 					{Reason: "Quality cutoff not met", Type: "permanent"},
 				},
@@ -258,7 +258,7 @@ func TestProcessItem_SeriesMatch(t *testing.T) {
 			{
 				ID:         1,
 				Path:       "/downloads/Show.S01E01.mkv",
-				Series:     &arrclient.MediaTitle{Title: "The Show"},
+				Series:     &arrclient.MediaRef{Title: "The Show"},
 				Rejections: []arrclient.Rejection{},
 			},
 		},
