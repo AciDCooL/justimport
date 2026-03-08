@@ -37,7 +37,7 @@ func (m *mockClient) GetManualImport(_ context.Context, _ string) ([]arrclient.M
 	return m.manualImport, m.manualImportErr
 }
 
-func (m *mockClient) PostManualImport(_ context.Context, _ arrclient.ManualImportItem, _ string) error {
+func (m *mockClient) PostManualImport(_ context.Context, _ *arrclient.ManualImportItem, _ string) error {
 	m.postCalled++
 	return m.postErr
 }

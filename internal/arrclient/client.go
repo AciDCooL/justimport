@@ -36,7 +36,7 @@ func (c *Client) Name() string {
 }
 
 func (c *Client) doGet(ctx context.Context, path string, out interface{}) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -48,7 +48,7 @@ func (c *Client) doGet(ctx context.Context, path string, out interface{}) error 
 		return fmt.Errorf("do request: %w", err)
 	}
 
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // response body close error is intentionally ignored
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status %d for %s", resp.StatusCode, path)
@@ -102,11 +102,11 @@ func (c *Client) GetManualImport(ctx context.Context, downloadID string) ([]Manu
 }
 
 // PostManualImport sends a manual import approval request for the given item.
-func (c *Client) PostManualImport(ctx context.Context, item ManualImportItem, importMode string) error {
+func (c *Client) PostManualImport(ctx context.Context, item *ManualImportItem, importMode string) error {
 	item.ImportApproved = true
 	item.ImportMode = importMode
 
-	data, err := json.Marshal([]ManualImportItem{item})
+	data, err := json.Marshal([]*ManualImportItem{item})
 	if err != nil {
 		return fmt.Errorf("marshal request: %w", err)
 	}
@@ -124,7 +124,7 @@ func (c *Client) PostManualImport(ctx context.Context, item ManualImportItem, im
 		return fmt.Errorf("do request: %w", err)
 	}
 
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // response body close error is intentionally ignored
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("unexpected status %d for manual import POST", resp.StatusCode)
