@@ -15,7 +15,7 @@ type ArrClient interface {
 	Name() string
 	GetQueue(ctx context.Context) ([]arrclient.QueueRecord, error)
 	GetManualImport(ctx context.Context, downloadID string) ([]arrclient.ManualImportItem, error)
-	PostManualImport(ctx context.Context, item arrclient.ManualImportItem, importMode string) error
+	PostManualImport(ctx context.Context, item *arrclient.ManualImportItem, importMode string) error
 }
 
 // Importer polls Radarr/Sonarr instances and auto-imports eligible queue items.
@@ -110,11 +110,11 @@ func (imp *Importer) processItem(ctx context.Context, client ArrClient, record a
 		slog.Warn(fmt.Sprintf("[%s] %q → SKIPPED: %d files found after filtering (expected exactly 1)", name, record.Title, len(filtered)))
 
 	default:
-		imp.importSingleFile(ctx, client, record, filtered[0])
+		imp.importSingleFile(ctx, client, record, &filtered[0])
 	}
 }
 
-func (imp *Importer) importSingleFile(ctx context.Context, client ArrClient, record arrclient.QueueRecord, item arrclient.ManualImportItem) {
+func (imp *Importer) importSingleFile(ctx context.Context, client ArrClient, record arrclient.QueueRecord, item *arrclient.ManualImportItem) {
 	name := client.Name()
 
 	if len(item.Rejections) > 0 {
@@ -165,9 +165,9 @@ func containsImportIndicator(s string) bool {
 // filterItems removes sample files from the list.
 func filterItems(items []arrclient.ManualImportItem) []arrclient.ManualImportItem {
 	filtered := make([]arrclient.ManualImportItem, 0, len(items))
-	for _, item := range items {
-		if !isSampleFile(item.Path) {
-			filtered = append(filtered, item)
+	for i := range items {
+		if !isSampleFile(items[i].Path) {
+			filtered = append(filtered, items[i])
 		}
 	}
 	return filtered
@@ -179,7 +179,7 @@ func isSampleFile(path string) bool {
 }
 
 // matchedTitle returns the title of the matched movie or series, or empty string if unmatched.
-func matchedTitle(item arrclient.ManualImportItem) string {
+func matchedTitle(item *arrclient.ManualImportItem) string {
 	if item.Movie != nil && item.Movie.Title != "" {
 		return item.Movie.Title
 	}
