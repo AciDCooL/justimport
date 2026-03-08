@@ -108,12 +108,6 @@ services:
 
 ---
 
-## Topics
-
-`radarr` · `sonarr` · `docker` · `automation` · `vibe-coded` · `arr` · `manual-import`
-
----
-
 ## License
 
-[MIT](LICENSE) © 2026 erkexzcx
+[MIT](LICENSE)
