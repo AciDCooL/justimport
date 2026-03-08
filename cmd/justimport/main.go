@@ -34,7 +34,7 @@ func main() {
 		slog.Info("Mode: LIVE (imports will be performed)")
 	}
 
-	slog.Info(fmt.Sprintf("Poll interval: %s | Import mode: %s", cfg.PollInterval, cfg.ImportMode))
+	slog.Info(fmt.Sprintf("Poll interval: %s", cfg.PollInterval))
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -63,7 +63,7 @@ func main() {
 		clients = append(clients, c)
 	}
 
-	imp := importer.New(clients, cfg.ImportMode, cfg.DryRun)
+	imp := importer.New(clients, cfg.DryRun)
 	imp.Run(ctx, cfg.PollInterval)
 
 	slog.Info("Shutting down...")

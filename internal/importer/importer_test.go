@@ -37,7 +37,7 @@ func (m *mockClient) GetManualImport(_ context.Context, _ string) ([]arrclient.M
 	return m.manualImport, m.manualImportErr
 }
 
-func (m *mockClient) PostManualImport(_ context.Context, _ arrclient.ManualImportItem, _ string) error {
+func (m *mockClient) PostManualImport(_ context.Context, _ arrclient.ManualImportItem) error {
 	m.postCalled++
 	return m.postErr
 }
@@ -78,7 +78,7 @@ func TestFilterItems_ExcludesSampleByFilename(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", true)
+	imp := importer.New([]importer.ArrClient{client}, true)
 	imp.Run(cancelledContext(), 0)
 
 	// Sample file only → 0 files after filtering → SKIPPED (not imported).
@@ -98,7 +98,7 @@ func TestFilterItems_ExcludesSampleInDirectory(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", true)
+	imp := importer.New([]importer.ArrClient{client}, true)
 	imp.Run(cancelledContext(), 0)
 
 	if client.postCalled != 0 {
@@ -117,7 +117,7 @@ func TestFilterItems_KeepsNonSampleFile(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0)
 
 	// 1 non-sample file with no rejections and a matched movie → should import.
@@ -139,7 +139,7 @@ func TestProcessItem_ZeroFiles(t *testing.T) {
 		manualImport: []arrclient.ManualImportItem{},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0)
 
 	if client.postCalled != 0 {
@@ -160,7 +160,7 @@ func TestProcessItem_MultipleFiles(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0)
 
 	if client.postCalled != 0 {
@@ -180,7 +180,7 @@ func TestProcessItem_SampleFilteredLeavesOneFile(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0)
 
 	// After filtering out sample, exactly 1 file remains → should import.
@@ -211,7 +211,7 @@ func TestProcessItem_FileWithRejections(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0)
 
 	if client.postCalled != 0 {
@@ -240,7 +240,7 @@ func TestProcessItem_NoMovieOrSeries(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0)
 
 	if client.postCalled != 0 {
@@ -264,7 +264,7 @@ func TestProcessItem_SeriesMatch(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0)
 
 	if client.postCalled != 1 {
@@ -287,7 +287,7 @@ func TestDryRun_DoesNotPost(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", true) // dryRun=true
+	imp := importer.New([]importer.ArrClient{client}, true) // dryRun=true
 	imp.Run(cancelledContext(), 0)
 
 	if client.postCalled != 0 {
@@ -310,7 +310,7 @@ func TestDeduplication_SameDownloadIDNotProcessedTwice(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 
 	// Poll twice — second poll should not re-import.
 	imp.Run(cancelledContext(), 0)
@@ -333,7 +333,7 @@ func TestDeduplication_DifferentDownloadIDsProcessedIndependently(t *testing.T) 
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0)
 
 	// Both dl1 and dl2 should be processed on first poll.
@@ -364,7 +364,7 @@ func TestNeedsManualImport_TitleMatch(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0)
 
 	if client.postCalled != 1 {
@@ -393,7 +393,7 @@ func TestNeedsManualImport_MessageMatch(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0)
 
 	if client.postCalled != 1 {
@@ -419,7 +419,7 @@ func TestNeedsManualImport_NoMatchSkipsItem(t *testing.T) {
 		},
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0)
 
 	if client.postCalled != 0 {
@@ -437,7 +437,7 @@ func TestPollInstance_QueueError(t *testing.T) {
 		queueErr: errors.New("connection refused"),
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0) // should not panic
 }
 
@@ -450,7 +450,7 @@ func TestProcessItem_ManualImportError(t *testing.T) {
 		manualImportErr: errors.New("API error"),
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0) // should not panic
 
 	if client.postCalled != 0 {
@@ -470,7 +470,7 @@ func TestProcessItem_PostError(t *testing.T) {
 		postErr: errors.New("server error"),
 	}
 
-	imp := importer.New([]importer.ArrClient{client}, "Move", false)
+	imp := importer.New([]importer.ArrClient{client}, false)
 	imp.Run(cancelledContext(), 0) // should not panic
 
 	if client.postCalled != 1 {

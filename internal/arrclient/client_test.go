@@ -172,7 +172,7 @@ func TestPostManualImport(t *testing.T) {
 		},
 	}
 
-	if err := client.PostManualImport(context.Background(), item, "Move"); err != nil {
+	if err := client.PostManualImport(context.Background(), item); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -196,7 +196,7 @@ func TestPostManualImport_ServerError(t *testing.T) {
 	client := arrclient.NewClient(server.URL, "test-key", "radarr")
 	item := arrclient.ManualImportItem{ID: 1, Path: "/downloads/movie.mkv"}
 
-	if err := client.PostManualImport(context.Background(), item, "Move"); err == nil {
+	if err := client.PostManualImport(context.Background(), item); err == nil {
 		t.Fatal("expected error, got nil")
 	}
 }
