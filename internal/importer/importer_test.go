@@ -532,6 +532,142 @@ func TestProcessItem_ManualImportErrorNotMarkedAsSeen(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Reconnect / seen-map pruning
+// ---------------------------------------------------------------------------
+
+func TestSeenPruning_ItemRemovedFromQueue(t *testing.T) {
+	client := &mockClient{
+		name: "radarr",
+		queueRecords: []arrclient.QueueRecord{
+			recordWithManualImport(1, "Movie.2020.mkv", "dl1"),
+		},
+		manualImport: []arrclient.ManualImportItem{
+			movieItem("/downloads/Movie.2020.mkv", "Movie 2020"),
+		},
+	}
+
+	imp := importer.New([]importer.ArrClient{client}, false)
+
+	// First poll: item is processed and marked as seen.
+	imp.Run(cancelledContext(), 0)
+	if client.postCalled != 1 {
+		t.Fatalf("expected 1 POST call, got %d", client.postCalled)
+	}
+
+	// Item leaves queue (e.g. import completed, or service restarted with empty queue).
+	client.queueRecords = nil
+
+	// Second poll: seen map should be pruned since item is no longer in queue.
+	imp.Run(cancelledContext(), 0)
+
+	// Item returns to queue (e.g. re-downloaded, or service restarted with item back).
+	client.queueRecords = []arrclient.QueueRecord{
+		recordWithManualImport(1, "Movie.2020.mkv", "dl1"),
+	}
+
+	// Third poll: item should be re-processed because it was pruned from seen.
+	imp.Run(cancelledContext(), 0)
+	if client.postCalled != 2 {
+		t.Errorf("expected 2 POST calls (re-process after pruning), got %d", client.postCalled)
+	}
+}
+
+func TestSeenPruning_SkippedWhenClientFails(t *testing.T) {
+	radarr := &mockClient{
+		name: "radarr",
+		queueRecords: []arrclient.QueueRecord{
+			recordWithManualImport(1, "Movie.2020.mkv", "dl1"),
+		},
+		manualImport: []arrclient.ManualImportItem{
+			movieItem("/downloads/Movie.2020.mkv", "Movie 2020"),
+		},
+	}
+	sonarr := &mockClient{
+		name:     "sonarr",
+		queueErr: errors.New("connection refused"),
+	}
+
+	imp := importer.New([]importer.ArrClient{radarr, sonarr}, false)
+
+	// First poll: radarr succeeds, sonarr fails.
+	imp.Run(cancelledContext(), 0)
+	if radarr.postCalled != 1 {
+		t.Fatalf("expected 1 POST call for radarr, got %d", radarr.postCalled)
+	}
+
+	// Radarr's item leaves queue, but sonarr is still failing.
+	radarr.queueRecords = nil
+
+	// Second poll: pruning should be skipped because sonarr failed.
+	imp.Run(cancelledContext(), 0)
+
+	// Radarr's item returns — should NOT be re-processed because seen was not pruned.
+	radarr.queueRecords = []arrclient.QueueRecord{
+		recordWithManualImport(1, "Movie.2020.mkv", "dl1"),
+	}
+
+	imp.Run(cancelledContext(), 0)
+	if radarr.postCalled != 1 {
+		t.Errorf("expected 1 POST call (no pruning while sonarr down), got %d", radarr.postCalled)
+	}
+}
+
+func TestReconnect_QueueErrorThenSuccess(t *testing.T) {
+	client := &mockClient{
+		name:     "radarr",
+		queueErr: errors.New("connection refused"),
+	}
+
+	imp := importer.New([]importer.ArrClient{client}, false)
+
+	// First poll: connection fails.
+	imp.Run(cancelledContext(), 0)
+
+	// Fix the connection and provide queue data.
+	client.queueErr = nil
+	client.queueRecords = []arrclient.QueueRecord{
+		recordWithManualImport(1, "Movie.2020.mkv", "dl1"),
+	}
+	client.manualImport = []arrclient.ManualImportItem{
+		movieItem("/downloads/Movie.2020.mkv", "Movie 2020"),
+	}
+
+	// Second poll: should reconnect and process items.
+	imp.Run(cancelledContext(), 0)
+	if client.postCalled != 1 {
+		t.Errorf("expected 1 POST call after reconnect, got %d", client.postCalled)
+	}
+}
+
+func TestReconnect_MultipleFailuresThenRecovery(t *testing.T) {
+	client := &mockClient{
+		name:     "radarr",
+		queueErr: errors.New("connection refused"),
+	}
+
+	imp := importer.New([]importer.ArrClient{client}, false)
+
+	// Multiple failures should not panic or break state.
+	imp.Run(cancelledContext(), 0)
+	imp.Run(cancelledContext(), 0)
+	imp.Run(cancelledContext(), 0)
+
+	// Recovery.
+	client.queueErr = nil
+	client.queueRecords = []arrclient.QueueRecord{
+		recordWithManualImport(1, "Movie.2020.mkv", "dl1"),
+	}
+	client.manualImport = []arrclient.ManualImportItem{
+		movieItem("/downloads/Movie.2020.mkv", "Movie 2020"),
+	}
+
+	imp.Run(cancelledContext(), 0)
+	if client.postCalled != 1 {
+		t.Errorf("expected 1 POST call after recovery, got %d", client.postCalled)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
