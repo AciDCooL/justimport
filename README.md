@@ -94,8 +94,7 @@ services:
 2026-03-08 12:00:00 INF Poll interval: 60s
 2026-03-08 12:00:00 INF Radarr: http://radarr:7878 ✓ (connected, Radarr v5.3.0)
 2026-03-08 12:00:00 INF Sonarr: http://sonarr:8989 ✓ (connected, Sonarr v4.0.0)
-2026-03-08 12:00:01 INF [radarr] Checking queue... found 3 items requiring manual import
-2026-03-08 12:00:01 INF [radarr] "White.Noise.2.The.Light.2007.1080p.mkv" → WOULD IMPORT (1 file, matched to "White Noise 2: The Light")
+2026-03-08 12:00:01 INF [radarr] Checking queue... found 2 items requiring manual import
 2026-03-08 12:00:01 WRN [radarr] "Some.Movie.Pack.2024" → SKIPPED: 4 files found after filtering (expected exactly 1)
 2026-03-08 12:00:01 WRN [radarr] "Another.Movie.2024" → SKIPPED: 0 files found after filtering
 2026-03-08 12:00:01 INF [sonarr] Checking queue... found 0 items requiring manual import
