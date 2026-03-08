@@ -18,6 +18,14 @@ type ArrClient interface {
 	PostManualImport(ctx context.Context, item *arrclient.ManualImportItem) error
 }
 
+// sanitizeLog replaces newline and carriage return characters in a string
+// to prevent log injection attacks via server-controlled data.
+func sanitizeLog(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
+	return s
+}
+
 // Importer polls Radarr/Sonarr instances and auto-imports eligible queue items.
 type Importer struct {
 	clients []ArrClient
@@ -84,59 +92,68 @@ func (imp *Importer) pollInstance(ctx context.Context, client ArrClient) {
 		if _, ok := imp.seen[record.DownloadID]; ok {
 			continue
 		}
-		imp.processItem(ctx, client, record)
-		imp.seen[record.DownloadID] = struct{}{}
+		if imp.processItem(ctx, client, record) {
+			imp.seen[record.DownloadID] = struct{}{}
+		}
 	}
 }
 
-func (imp *Importer) processItem(ctx context.Context, client ArrClient, record arrclient.QueueRecord) {
+// processItem returns true if the item was handled (imported or deliberately skipped)
+// and should be marked as seen, or false if a transient error occurred and the item
+// should be retried on the next poll.
+func (imp *Importer) processItem(ctx context.Context, client ArrClient, record arrclient.QueueRecord) bool {
 	name := client.Name()
 
 	items, err := client.GetManualImport(ctx, record.DownloadID)
 	if err != nil {
-		slog.Error(fmt.Sprintf("[%s] Failed to fetch manual import for %q: %v", name, record.Title, err))
-		return
+		slog.Error(fmt.Sprintf("[%s] Failed to fetch manual import for %q: %v", name, sanitizeLog(record.Title), err))
+		return false
 	}
 
 	filtered := filterItems(items)
 
 	switch {
 	case len(filtered) == 0:
-		slog.Warn(fmt.Sprintf("[%s] %q → SKIPPED: 0 files found after filtering", name, record.Title))
+		slog.Warn(fmt.Sprintf("[%s] %q → SKIPPED: 0 files found after filtering", name, sanitizeLog(record.Title)))
+		return true
 
 	case len(filtered) > 1:
-		slog.Warn(fmt.Sprintf("[%s] %q → SKIPPED: %d files found after filtering (expected exactly 1)", name, record.Title, len(filtered)))
+		slog.Warn(fmt.Sprintf("[%s] %q → SKIPPED: %d files found after filtering (expected exactly 1)", name, sanitizeLog(record.Title), len(filtered)))
+		return true
 
 	default:
-		imp.importSingleFile(ctx, client, record, &filtered[0])
+		return imp.importSingleFile(ctx, client, record, &filtered[0])
 	}
 }
 
-func (imp *Importer) importSingleFile(ctx context.Context, client ArrClient, record arrclient.QueueRecord, item *arrclient.ManualImportItem) {
+// importSingleFile returns true if the item was handled (imported or deliberately skipped)
+// and should be marked as seen, or false if a transient error occurred.
+func (imp *Importer) importSingleFile(ctx context.Context, client ArrClient, record arrclient.QueueRecord, item *arrclient.ManualImportItem) bool {
 	name := client.Name()
 
 	if len(item.Rejections) > 0 {
-		slog.Warn(fmt.Sprintf("[%s] %q → SKIPPED: file has %d rejection(s): %s", name, record.Title, len(item.Rejections), item.Rejections[0].Reason))
-		return
+		slog.Warn(fmt.Sprintf("[%s] %q → SKIPPED: file has %d rejection(s): %s", name, sanitizeLog(record.Title), len(item.Rejections), sanitizeLog(item.Rejections[0].Reason)))
+		return true
 	}
 
 	matched := matchedTitle(item)
 	if matched == "" {
-		slog.Warn(fmt.Sprintf("[%s] %q → SKIPPED: file not matched to any movie or series", name, record.Title))
-		return
+		slog.Warn(fmt.Sprintf("[%s] %q → SKIPPED: file not matched to any movie or series", name, sanitizeLog(record.Title)))
+		return true
 	}
 
 	if imp.dryRun {
-		slog.Info(fmt.Sprintf("[%s] %q → WOULD IMPORT (1 file, matched to %q)", name, record.Title, matched))
-		return
+		slog.Info(fmt.Sprintf("[%s] %q → WOULD IMPORT (1 file, matched to %q)", name, sanitizeLog(record.Title), sanitizeLog(matched)))
+		return true
 	}
 
 	if err := client.PostManualImport(ctx, item); err != nil {
-		slog.Error(fmt.Sprintf("[%s] %q → IMPORT FAILED: %v", name, record.Title, err))
-		return
+		slog.Error(fmt.Sprintf("[%s] %q → IMPORT FAILED: %v", name, sanitizeLog(record.Title), err))
+		return false
 	}
 
-	slog.Info(fmt.Sprintf("[%s] %q → IMPORTED (1 file, matched to %q)", name, record.Title, matched))
+	slog.Info(fmt.Sprintf("[%s] %q → IMPORTED (1 file, matched to %q)", name, sanitizeLog(record.Title), sanitizeLog(matched)))
+	return true
 }
 
 // needsManualImport returns true if the queue record requires manual import.

@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -35,6 +37,9 @@ func (c *Client) Name() string {
 	return c.name
 }
 
+// maxResponseBytes is the maximum response body size the client will read (10 MB).
+const maxResponseBytes = 10 * 1024 * 1024
+
 func (c *Client) doGet(ctx context.Context, path string, out interface{}) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, http.NoBody)
 	if err != nil {
@@ -54,7 +59,8 @@ func (c *Client) doGet(ctx context.Context, path string, out interface{}) error 
 		return fmt.Errorf("unexpected status %d for %s", resp.StatusCode, path)
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(out)
+	limited := io.LimitReader(resp.Body, maxResponseBytes)
+	err = json.NewDecoder(limited).Decode(out)
 	if err != nil {
 		return fmt.Errorf("decode response: %w", err)
 	}
@@ -99,7 +105,7 @@ func (c *Client) GetQueue(ctx context.Context) ([]QueueRecord, error) {
 func (c *Client) GetManualImport(ctx context.Context, downloadID string) ([]ManualImportItem, error) {
 	var items []ManualImportItem
 
-	path := "/api/v3/manualimport?downloadId=" + downloadID
+	path := "/api/v3/manualimport?downloadId=" + url.QueryEscape(downloadID)
 	if err := c.doGet(ctx, path, &items); err != nil {
 		return nil, err
 	}
