@@ -86,12 +86,16 @@ func (imp *Importer) pollInstance(ctx context.Context, client ArrClient) {
 		}
 	}
 
-	slog.Info(fmt.Sprintf("[%s] Checking queue... found %d items requiring manual import", name, len(pending)))
-
+	var newPending []arrclient.QueueRecord
 	for _, record := range pending {
-		if _, ok := imp.seen[record.DownloadID]; ok {
-			continue
+		if _, ok := imp.seen[record.DownloadID]; !ok {
+			newPending = append(newPending, record)
 		}
+	}
+
+	slog.Debug(fmt.Sprintf("[%s] Checking queue... found %d items requiring manual import (%d new)", name, len(pending), len(newPending)))
+
+	for _, record := range newPending {
 		if imp.processItem(ctx, client, record) {
 			imp.seen[record.DownloadID] = struct{}{}
 		}
