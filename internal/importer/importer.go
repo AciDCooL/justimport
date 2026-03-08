@@ -15,24 +15,22 @@ type ArrClient interface {
 	Name() string
 	GetQueue(ctx context.Context) ([]arrclient.QueueRecord, error)
 	GetManualImport(ctx context.Context, downloadID string) ([]arrclient.ManualImportItem, error)
-	PostManualImport(ctx context.Context, item *arrclient.ManualImportItem, importMode string) error
+	PostManualImport(ctx context.Context, item *arrclient.ManualImportItem) error
 }
 
 // Importer polls Radarr/Sonarr instances and auto-imports eligible queue items.
 type Importer struct {
-	clients    []ArrClient
-	importMode string
-	dryRun     bool
-	seen       map[string]struct{}
+	clients []ArrClient
+	dryRun  bool
+	seen    map[string]struct{}
 }
 
 // New creates a new Importer.
-func New(clients []ArrClient, importMode string, dryRun bool) *Importer {
+func New(clients []ArrClient, dryRun bool) *Importer {
 	return &Importer{
-		clients:    clients,
-		importMode: importMode,
-		dryRun:     dryRun,
-		seen:       make(map[string]struct{}),
+		clients: clients,
+		dryRun:  dryRun,
+		seen:    make(map[string]struct{}),
 	}
 }
 
@@ -133,7 +131,7 @@ func (imp *Importer) importSingleFile(ctx context.Context, client ArrClient, rec
 		return
 	}
 
-	if err := client.PostManualImport(ctx, item, imp.importMode); err != nil {
+	if err := client.PostManualImport(ctx, item); err != nil {
 		slog.Error(fmt.Sprintf("[%s] %q → IMPORT FAILED: %v", name, record.Title, err))
 		return
 	}

@@ -59,10 +59,9 @@ All configuration is via environment variables. No config files.
 | `SONARR_URL` | *(unset)* | Base URL of your Sonarr instance, e.g. `http://sonarr:8989` |
 | `SONARR_API_KEY` | *(unset)* | Sonarr API key |
 | `POLL_INTERVAL` | `60s` | How often to check queues (Go duration: `30s`, `1m`, `5m`, …) |
-| `IMPORT_MODE` | `Move` | `Move` or `Copy` |
 | `DRY_RUN` | `true` | Set to `false` to enable real imports |
 
-At least one of `RADARR_URL` / `SONARR_URL` must be set. Both can be set simultaneously.
+> **Note:** You do **not** need both Radarr and Sonarr. Configure only the services you use — at least one of `RADARR_URL` or `SONARR_URL` must be set.
 
 ---
 
@@ -75,12 +74,12 @@ services:
     container_name: justimport
     restart: unless-stopped
     environment:
+      # Configure Radarr, Sonarr, or both — at least one is required.
       - RADARR_URL=http://radarr:7878
       - RADARR_API_KEY=your-radarr-api-key
-      - SONARR_URL=http://sonarr:8989
-      - SONARR_API_KEY=your-sonarr-api-key
+      # - SONARR_URL=http://sonarr:8989          # uncomment if you use Sonarr
+      # - SONARR_API_KEY=your-sonarr-api-key      # uncomment if you use Sonarr
       - POLL_INTERVAL=60s
-      - IMPORT_MODE=Move
       - DRY_RUN=true   # change to false when ready
 ```
 
@@ -92,7 +91,7 @@ services:
 ```
 2026-03-08 12:00:00 INF Starting justimport v1.0.0 (vibe-coded with ❤️)
 2026-03-08 12:00:00 INF Mode: DRY RUN (set DRY_RUN=false to enable imports)
-2026-03-08 12:00:00 INF Poll interval: 60s | Import mode: Move
+2026-03-08 12:00:00 INF Poll interval: 60s
 2026-03-08 12:00:00 INF Radarr: http://radarr:7878 ✓ (connected, Radarr v5.3.0)
 2026-03-08 12:00:00 INF Sonarr: http://sonarr:8989 ✓ (connected, Sonarr v4.0.0)
 2026-03-08 12:00:01 INF [radarr] Checking queue... found 3 items requiring manual import

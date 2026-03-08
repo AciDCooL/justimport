@@ -4,10 +4,10 @@ services:
     container_name: justimport
     restart: unless-stopped
     environment:
+      # Configure Radarr, Sonarr, or both — at least one is required.
       - RADARR_URL=http://radarr:7878
       - RADARR_API_KEY=your-radarr-api-key
-      - SONARR_URL=http://sonarr:8989
-      - SONARR_API_KEY=your-sonarr-api-key
+      # - SONARR_URL=http://sonarr:8989          # uncomment if you use Sonarr
+      # - SONARR_API_KEY=your-sonarr-api-key      # uncomment if you use Sonarr
       - POLL_INTERVAL=60s
-      - IMPORT_MODE=Move
       - DRY_RUN=true

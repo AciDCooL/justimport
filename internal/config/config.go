@@ -15,7 +15,6 @@ type Config struct {
 	SonarrURL    string
 	SonarrAPIKey string
 	PollInterval time.Duration
-	ImportMode   string
 	DryRun       bool
 }
 
@@ -43,13 +42,6 @@ func Load() (*Config, error) {
 	}
 
 	cfg.PollInterval = dur
-
-	importMode := os.Getenv("IMPORT_MODE")
-	if importMode == "" {
-		importMode = "Move"
-	}
-
-	cfg.ImportMode = importMode
 
 	dryRunStr := os.Getenv("DRY_RUN")
 	if dryRunStr == "" {
