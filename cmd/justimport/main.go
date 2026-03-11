@@ -78,8 +78,8 @@ func newLogHandler(w io.Writer) *logHandler {
 	return &logHandler{w: w}
 }
 
-func (h *logHandler) Enabled(_ context.Context, _ slog.Level) bool {
-	return true
+func (h *logHandler) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= slog.LevelInfo
 }
 
 func (h *logHandler) Handle(_ context.Context, r slog.Record) error { //nolint:gocritic // slog.Handler interface requires slog.Record by value
@@ -103,7 +103,9 @@ func levelLabel(l slog.Level) string {
 		return "ERR"
 	case l >= slog.LevelWarn:
 		return "WRN"
-	default:
+	case l >= slog.LevelInfo:
 		return "INF"
+	default:
+		return "DBG"
 	}
 }
