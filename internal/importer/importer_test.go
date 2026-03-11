@@ -401,6 +401,40 @@ func TestNeedsManualImport_MessageMatch(t *testing.T) {
 	}
 }
 
+func TestNeedsManualImport_MatchedToSeriesByID(t *testing.T) {
+	client := &mockClient{
+		name: "sonarr",
+		queueRecords: []arrclient.QueueRecord{
+			{
+				ID:         1,
+				Title:      "Show.2026.S01E01",
+				DownloadID: "dl1",
+				StatusMessages: []arrclient.StatusMessage{
+					{
+						Title:    "Some other title",
+						Messages: []string{"release was matched to series by id"},
+					},
+				},
+			},
+		},
+		manualImport: []arrclient.ManualImportItem{
+			{
+				ID:         1,
+				Path:       "/downloads/Show.2026.S01E01.mkv",
+				Series:     &arrclient.MediaRef{Title: "The Show"},
+				Rejections: []arrclient.Rejection{},
+			},
+		},
+	}
+
+	imp := importer.New([]importer.ArrClient{client}, false)
+	imp.Run(cancelledContext(), 0)
+
+	if client.postCalled != 1 {
+		t.Errorf("expected 1 POST call for 'matched to series by id' message, got %d", client.postCalled)
+	}
+}
+
 func TestNeedsManualImport_NoMatchSkipsItem(t *testing.T) {
 	client := &mockClient{
 		name: "radarr",

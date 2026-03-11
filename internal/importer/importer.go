@@ -215,7 +215,8 @@ func needsManualImport(record arrclient.QueueRecord) bool {
 func containsImportIndicator(s string) bool {
 	lower := strings.ToLower(s)
 	return strings.Contains(lower, "manual import required") ||
-		strings.Contains(lower, "matched to movie by id")
+		strings.Contains(lower, "matched to movie by id") ||
+		strings.Contains(lower, "matched to series by id")
 }
 
 // filterItems removes sample files from the list.
