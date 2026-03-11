@@ -128,7 +128,11 @@ func (imp *Importer) pollInstance(ctx context.Context, client ArrClient) ([]stri
 		}
 	}
 
-	slog.Debug(fmt.Sprintf("[%s] Checking queue... found %d items requiring manual import (%d new)", name, len(pending), len(newPending)))
+	if len(newPending) > 0 {
+		slog.Info(fmt.Sprintf("[%s] Checking queue... found %d items requiring manual import (%d new)", name, len(pending), len(newPending)))
+	} else {
+		slog.Debug(fmt.Sprintf("[%s] Checking queue... found %d items requiring manual import (%d new)", name, len(pending), len(newPending)))
+	}
 
 	for _, record := range newPending {
 		if imp.processItem(ctx, client, record) {
